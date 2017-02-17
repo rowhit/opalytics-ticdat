@@ -18,6 +18,7 @@ from ticdat.ticdatfactory import TicDatFactory, freeze_me
 from ticdat.utils import Sloc, LogFile, Progress, Slicer, \
                          find_denormalized_sub_table_failures, standard_main
 from ticdat.model import Model
+from ticdat.java import java_run
 __all__ = ["TicDatFactory", "freeze_me", "LogFile", "Sloc", "Slicer", "Progress"
-            "find_denormalized_sub_table_failures", "standard_main", "Model"]
+            "find_denormalized_sub_table_failures", "standard_main", "Model", "java_run"]
 

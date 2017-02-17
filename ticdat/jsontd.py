@@ -94,13 +94,15 @@ class JsonTicFactory(freezable_factory(object, "_isFrozen")) :
             verify(len(table_keys[t]) < 2, "Found duplicate matching keys for table %s"%t)
             rtn[t] = jdict[table_keys[t][0]]
         return rtn
-    def write_file(self, tic_dat, json_file_path, allow_overwrite = False):
+    def write_file(self, tic_dat, json_file_path, allow_overwrite = False, verbose = False):
         """
         write the ticDat data to an excel file
         :param tic_dat: the data object to write (typically a TicDat)
         :param json_file_path: The file path of the json file to create.
         :param allow_overwrite: boolean - are we allowed to overwrite an
                                 existing file?
+        :param verbose: boolean. Verbose mode writes the data rows as dicts
+                        keyed by field name. Otherwise, they are lists.
         :return:
         """
         _standard_verify(self.tic_dat_factory)
@@ -109,13 +111,18 @@ class JsonTicFactory(freezable_factory(object, "_isFrozen")) :
         tdf = self.tic_dat_factory
         jdict = defaultdict(list)
         for t in tdf.all_tables:
+            all_fields = tdf.primary_key_fields.get(t,()) + tdf.data_fields.get(t,())
+            def make_row(row):
+                assert containerish(row) and len(row) == len(all_fields)
+                return {f:v for f,v in zip(all_fields, row)} if verbose else row
+            appender = lambda row : jdict[t].append(make_row(row))
             tbl = getattr(tic_dat, t)
             if tdf.primary_key_fields.get(t):
                 for pk, data_row in tbl.items():
-                    jdict[t].append((list(pk) if containerish(pk) else [pk]) +
-                                    [data_row[df] for df in tdf.data_fields[t]])
+                    appender((list(pk) if containerish(pk) else [pk]) +
+                             [data_row[df] for df in tdf.data_fields[t]])
             else:
                 for data_row in tbl:
-                    jdict[t].append([data_row[df] for df in tdf.data_fields[t]])
+                    appender([data_row[df] for df in tdf.data_fields[t]])
         with open(json_file_path, "w") as fp:
             json.dump(jdict, fp)
