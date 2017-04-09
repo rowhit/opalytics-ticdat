@@ -511,6 +511,7 @@ foreign keys, the code throwing this exception will be removed.
                     def __init__(self, *_args, **_kwargs):
                         super(TicDatDict, self).__init__(*_args, **_kwargs)
                         alldatadicts.append(self)
+                        self._slicer = []
                     def __setitem__(self, key, value):
                         verify(containerish(key) ==  (keylen > 1) and
                                (keylen == 1 or keylen == len(key)),
@@ -520,6 +521,26 @@ foreign keys, the code throwing this exception will be removed.
                         if (item not in self) and (not getattr(self, "_dataFrozen", False)):
                             self[item] = rowfactory({})
                         return super(TicDatDict, self).__getitem__(item)
+                    # ********* BEGIN NOT WELL TESTED SECTION *****************
+                    def slice(self, **kwargs):
+                        verify(keylen > 1, "pointless for single primary key fields")
+                        if not self._slicer:
+                            self._slicer[:] = [utils.Slicer(self, field_names=primarykey)]
+                        return self._slicer[0].slice(**kwargs)
+                    def prod(self, gu_tuple_dict, field_name = None, **kwargs):
+                        field_dict = self.field_dict(field_name)
+                        keys, fixed_slice = self.keys(), []
+                        if kwargs:
+                            keys = self.slice(**kwargs)
+                            fixed_slice = [kwargs.get(f, '*') for f in primarykey]
+                        return gu_tuple_dict.prod({k:field_dict[k] for k in keys}, *fixed_slice)
+                    def field_dict(self, field_name = None):
+                        verify(superself.data_fields.get(tablename), "pointless if no data fields")
+                        field_name = field_name or superself.data_fields[tablename][0]
+                        verify(field_name in superself.data_fields[tablename], "bad field_name")
+                        return {k:self[k][field_name] for k in self}
+                    # ********* END NOT WELL TESTED SECTION *****************
+
                 assert dictish(TicDatDict)
                 return TicDatDict
             class TicDatDataList(clt.MutableSequence):
