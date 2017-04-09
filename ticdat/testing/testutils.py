@@ -632,6 +632,41 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(self.firesException(
             lambda : utils.Slicer(([1,2], [2,3], [1, 3, 3], [12.2, 2]))))
 
+    def testFourteen_Two(self):
+        slicer = utils.Slicer(([1,2],(x for x in (2,3)), [1, 12], [12.2, 2]),
+                              field_names=["foo", "bar"])
+        def dotests():
+            self.assertTrue(set(slicer.slice(bar=2)) == {(1,2),(12.2,2)})
+            self.assertTrue(set(slicer.slice(foo=1)) == {(1,12),(1,2)})
+            self.assertTrue(slicer.slice(bar=2,foo=1) == [(1,2)])
+
+        dotests()
+        self.assertFalse(slicer._archived_slicings and slicer._gu)
+        slicer._forceguout()
+        dotests()
+        self.assertTrue(len(slicer._archived_slicings) == 3 and not slicer._gu)
+
+        slicer = utils.Slicer(set([tuple(range(_))[-5:] for _ in range(5,30)] +
+                                  [(1, 2, 3) + tuple(range(_))[-2:] for _ in range(2,10)]),
+                              field_names=['a','b','c','d','e'])
+        def dotests():
+            self.assertTrue(len(slicer.slice(b=2, a=1))== 8)
+            for x in range(25):
+                if x != 1:
+                    self.assertTrue(len(slicer.slice(a=x, b=x+1))== 1)
+                self.assertTrue(len(slicer.slice(e=x)) ==
+                                (2 if x in (4,6,7,8) else (0 if x == 0 else 1)))
+            self.assertTrue(slicer.slice(a='no') == [])
+        dotests()
+        self.assertFalse(slicer._archived_slicings and slicer._gu)
+        slicer._forceguout()
+        dotests()
+        self.assertTrue(len(slicer._archived_slicings) == 3 and not slicer._gu)
+
+        self.assertTrue(self.firesException(
+            lambda : utils.Slicer(([1,2], [2,3], [1, 111], [12.2, 2]),
+                                  field_names=["bo"])))
+
     def testFifteen(self):
         tdf = TicDatFactory(theTable = [["fieldOne"],["fieldTwo"]])
         for f in ["fieldOne", "fieldTwo"]:

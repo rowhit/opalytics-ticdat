@@ -252,20 +252,29 @@ class Slicer(object):
     """
     Object to perform multi-index slicing over an index sequence
     """
-    def __init__(self, iter_of_iters):
+    def __init__(self, iter_of_iters, field_names = None):
         """
         Construct a multi-index Slicer object
         :param iter_of_iters An iterable of iterables. Usually a list of lists, or a list
         of tuples. Each inner iterable must be the same size. The "*" string has a special
         flag meaning and cannot be a member of any of the inner iterables.
+        :param field_names - If provided, an iterable of strings. Can be used to identify
+        the fixed entries in a call to slice instead of using '*'.
         """
-        verify(hasattr(iter_of_iters, "__iter__"), "need an iterator of iterators")
+        verify(hasattr(iter_of_iters, "__iter__"), "iter_of_iters must be an iterator of iterators")
         copied = tuple(iter_of_iters)
-        verify(all(hasattr(_, "__iter__") for _ in copied), "need iterator of iterators")
+        verify(all(hasattr(_, "__iter__") for _ in copied),
+               "iter_of_iters must be an iterator of iterators")
+        field_names = field_names or []
+        verify(hasattr(field_names, "__iter__") and all(map(stringish, field_names)),
+               "field_names must be an iterator of strings")
+        self._field_names = tuple(field_names)
         self._indicies = tuple(map(tuple, copied))
         if self._indicies:
             verify(min(map(len, self._indicies)) == max(map(len, self._indicies)),
                    "each inner iterator needs to have the same number of elements")
+            verify(len(self._field_names) in [0, len(self._indicies[0])],
+                   "field_names must be same length as the number of elements")
             verify(not any("*" in _ for _ in self._indicies),
                    "The '*' character cannot itself be used as an index")
         self._gu = None
@@ -274,15 +283,21 @@ class Slicer(object):
             self._indicies = None
         self.clear()
 
-    def slice(self, *args):
+    def slice(self, *args, **kwargs):
         """
         Perform a multi-index slice. (Not to be confused with the native Python slice)
         :param *args a series of index values or '*'. The latter means 'match every value'
+        :param *kwargs a series of field_name identified fixed slice elements. Either
+                       user kwargs or args but not both.
         :return: a list of tuples which match  args.
         :caveat will run faster if gurobipy is available
         """
         if not (self._indicies or self._gu):
             return []
+        verify(not (args and kwargs), "Use either named or positional slicing")
+        if kwargs:
+            verify(set(kwargs).issubset(self._field_names), "unexpected field name in kwargs")
+            return self.slice(*[kwargs.get(f, '*') for f in self._field_names])
         verify(len(args) == len((self._indicies or self._gu)[0]), "inconsistent number of elements")
         if self._gu:
             return self._gu.select(*args)

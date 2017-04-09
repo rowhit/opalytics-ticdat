@@ -432,6 +432,8 @@ CLASSES
      |      :param iter_of_iters An iterable of iterables. Usually a list of lists, or a list
      |      of tuples. Each inner iterable must be the same size. The "*" string has a special
      |      flag meaning and cannot be a member of any of the inner iterables.
+     |      :param field_names - If provided, an iterable of strings. Can be used to identify
+     |      the fixed entries in a call to slice instead of using '*'.
      |
      |  clear(self)
      |      reduce memory overheard by clearing out any archived slicing.
@@ -441,6 +443,8 @@ CLASSES
      |  slice(self, *args)
      |      Perform a multi-index slice. (Not to be confused with the native Python slice)
      |      :param *args a series of index values or '*'. The latter means 'match every value'
+     |      :param *kwargs a series of field_name identified fixed slice elements. Either
+     |      user kwargs or args but not both.
      |      :return: a list of tuples which match  args.
      |      :caveat will run faster if gurobipy is available
      |
