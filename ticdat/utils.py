@@ -296,8 +296,9 @@ class Slicer(object):
             return []
         verify(not (args and kwargs), "Use either named or positional slicing")
         if kwargs:
-            verify(set(kwargs).issubset(self._field_names), "unexpected field name in kwargs")
-            return self.slice(*[kwargs.get(f, '*') for f in self._field_names])
+            matches = attempted_underscore_case_matcher(self._field_names, kwargs)
+            verify(len(matches) == len(kwargs), "unexpected field name in kwargs")
+            return self.slice(*[kwargs.get(matches.get(f), '*') for f in self._field_names])
         verify(len(args) == len((self._indicies or self._gu)[0]), "inconsistent number of elements")
         if self._gu:
             return self._gu.select(*args)
@@ -336,6 +337,22 @@ def all_underscore_replacements(s):
             s_ = s_[:i] + " " + s_[i+1:]
         rtn.append(s_)
     return rtn
+
+def attempted_underscore_case_matcher(original_fields, trial_fields):
+    assert containerish(original_fields) and containerish(trial_fields)
+    assert all(map(stringish, original_fields))
+    assert all(map(stringish, trial_fields))
+    def matcher(_trial_field):
+        assert " " not in _trial_field
+        if _trial_field in original_fields:
+            return _trial_field
+        for f in original_fields:
+            if f.replace(" ", "_") == _trial_field:
+                return f
+        for f in original_fields:
+            if f.replace(" ", "_").lower() == _trial_field.lower():
+                return f
+    return {match:f for f in trial_fields for match in [matcher(f)] if match}
 
 class TicDatError(Exception) :
     pass

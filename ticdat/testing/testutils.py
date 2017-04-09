@@ -634,11 +634,11 @@ class TestUtils(unittest.TestCase):
 
     def testFourteen_Two(self):
         slicer = utils.Slicer(([1,2],(x for x in (2,3)), [1, 12], [12.2, 2]),
-                              field_names=["foo", "bar"])
+                              field_names=["Foo Oh", "Bar One"])
         def dotests():
-            self.assertTrue(set(slicer.slice(bar=2)) == {(1,2),(12.2,2)})
-            self.assertTrue(set(slicer.slice(foo=1)) == {(1,12),(1,2)})
-            self.assertTrue(slicer.slice(bar=2,foo=1) == [(1,2)])
+            self.assertTrue(set(slicer.slice(bar_one=2)) == {(1,2),(12.2,2)})
+            self.assertTrue(set(slicer.slice(Foo_Oh=1)) == {(1,12),(1,2)})
+            self.assertTrue(slicer.slice(Bar_One=2,foo_oh=1) == [(1,2)])
 
         dotests()
         self.assertFalse(slicer._archived_slicings and slicer._gu)

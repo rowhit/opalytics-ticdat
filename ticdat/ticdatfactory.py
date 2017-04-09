@@ -532,7 +532,9 @@ foreign keys, the code throwing this exception will be removed.
                         keys, fixed_slice = self.keys(), []
                         if kwargs:
                             keys = self.slice(**kwargs)
-                            fixed_slice = [kwargs.get(f, '*') for f in primarykey]
+                            matches = utils.attempted_underscore_case_matcher(primarykey, kwargs)
+                            verify(len(matches) == len(kwargs), "unexpected field name in kwargs")
+                            fixed_slice = [kwargs.get(matches.get(f), '*') for f in primarykey]
                         return gu_tuple_dict.prod({k:field_dict[k] for k in keys}, *fixed_slice)
                     def field_dict(self, field_name = None):
                         verify(superself.data_fields.get(tablename), "pointless if no data fields")
