@@ -341,7 +341,8 @@ class Slicer(object):
                     if callable(scalar):
                         return scalar(*args)
                     return scalar
-                return gu_tuple_dict.prod({k:get_scalar(*k) for k in sliced}, *fixed_slicing)
+                return gu_tuple_dict.prod({k:_scalar for k in sliced for _scalar in [get_scalar(*k)]
+                                          if _scalar}, *fixed_slicing)
         return Selected()
     # END not very well tested section
 
