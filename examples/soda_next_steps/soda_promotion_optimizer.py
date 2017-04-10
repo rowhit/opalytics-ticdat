@@ -76,17 +76,24 @@ def solve(dat):
 
     # BEGIN !!!!! section assumes not yet implemented functionality !!!!!!!!
 
-    # BEGIN - IDEA ONE
-    pf_slice = Slicer(((dat.products[pdct]["Family"], pdct, price) for pdct, price in pdct_price
+    # BEGIN - IDEA ONE - normal_slice then prod
+    normal_slice = Slicer(((dat.products[pdct]["Family"], pdct, price) for pdct, price in pdct_price
                        if price != normal_price[pdct]), field_names=["family", "product", "price"])
     for pdct_family, r in dat.max_promotions.items():
-        mdl.addConstr(pf_slice.select()
-
-            gu.quicksum(pdct_price[_pdct, _price]
-                                  for _pdct_family, _pdct, _price in pf_slice.slice(pdct_family, '*', '*')
-                                  if _price != normal_price[_pdct]) <= r["Max Promotions"],
+        # here select returns an object thats useless until prod is called
+        # prod itself has a sscalar that is either a number, a function, or a dict, defaults to 1
+        mdl.addConstr(normal_slice.select(family = pdct_family).prod(pdct_price)
+                      <= r["Max Promotions"], name = "max_promotions_%s"%pdct_family)
+    # END - IDEA ONE
+    # BEGIN - IDEA TWO - more general slice object with a filter
+    pf_slice = Slicer(((dat.products[pdct]["Family"], pdct, price) for pdct, price in pdct_price),
+                       field_names=["family", "product", "price"])
+    for pdct_family, r in dat.max_promotions.items():
+        # here we can take advantage of the filter argument in the Selected object
+        mdl.addConstr(normal_slice.select(family = pdct_family).
+                      prod(pdct_price, filter = lambda family, product, price : price != normal_price[pdct])
+                      <= r["Max Promotions"],
                       name = "max_promotions_%s"%pdct_family)
-
     # END !!!!! section assumes not yet implemented functionality !!!!!!!!
 
     mdl.setObjective(total_qty, sense=gu.GRB.MAXIMIZE)

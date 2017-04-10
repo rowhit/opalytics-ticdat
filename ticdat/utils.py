@@ -268,6 +268,7 @@ class Slicer(object):
         field_names = field_names or []
         verify(hasattr(field_names, "__iter__") and all(map(stringish, field_names)),
                "field_names must be an iterator of strings")
+        verify(len(field_names) == len(set(field_names)), "field_names must not have duplicates")
         self._field_names = tuple(field_names)
         self._indicies = tuple(map(tuple, copied))
         if self._indicies:
@@ -283,6 +284,12 @@ class Slicer(object):
             self._indicies = None
         self.clear()
 
+    def _get_fixed_slicing(self, *args, **kwargs):
+        if kwargs:
+            matches = attempted_underscore_case_matcher(self._field_names, kwargs)
+            verify(len(matches) == len(kwargs), "unexpected field name in kwargs")
+            return [kwargs.get(matches.get(f), '*') for f in self._field_names]
+        return args
     def slice(self, *args, **kwargs):
         """
         Perform a multi-index slice. (Not to be confused with the native Python slice)
@@ -295,10 +302,7 @@ class Slicer(object):
         if not (self._indicies or self._gu):
             return []
         verify(not (args and kwargs), "Use either named or positional slicing")
-        if kwargs:
-            matches = attempted_underscore_case_matcher(self._field_names, kwargs)
-            verify(len(matches) == len(kwargs), "unexpected field name in kwargs")
-            return self.slice(*[kwargs.get(matches.get(f), '*') for f in self._field_names])
+        args = self._get_fixed_slicing(*args, **kwargs)
         verify(len(args) == len((self._indicies or self._gu)[0]), "inconsistent number of elements")
         if self._gu:
             return self._gu.select(*args)
@@ -321,6 +325,25 @@ class Slicer(object):
         if self._gu:
             self._indicies = tuple(map(tuple, self._gu))
             self._gu = None
+    # BEGIN not very well tested section
+    def select(self, *args, **kwargs):
+        sliced = self.slice(*args, **kwargs)
+        fixed_slicing = self._get_fixed_slicing(*args, **kwargs)
+        class Selected(object):
+            def prod(self, gu_tuple_dict, scalar = 1, filter = lambda *args : True):
+                def get_scalar(*args):
+                    if not filter(*args):
+                        return 0
+                    if dictish(scalar):
+                        if len(args)==1:
+                            return scalar.get(args[0], 1)
+                        return scalar.get(args, 1)
+                    if callable(scalar):
+                        return scalar(*args)
+                    return scalar
+                return gu_tuple_dict.prod({k:get_scalar(*k) for k in sliced}, *fixed_slicing)
+        return Selected()
+    # END not very well tested section
 
 def do_it(g): # just walks through everything in a gen - I like the syntax this enables
     for x in g :
