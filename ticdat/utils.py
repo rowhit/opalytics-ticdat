@@ -295,7 +295,7 @@ class Slicer(object):
         Perform a multi-index slice. (Not to be confused with the native Python slice)
         :param *args a series of index values or '*'. The latter means 'match every value'
         :param *kwargs a series of field_name identified fixed slice elements. Either
-                       user kwargs or args but not both.
+                       use kwargs or args but not both.
         :return: a list of tuples which match  args.
         :caveat will run faster if gurobipy is available
         """
@@ -327,9 +327,10 @@ class Slicer(object):
             self._gu = None
     # BEGIN not very well tested section
     def select(self, *args, **kwargs):
-        sliced = self.slice(*args, **kwargs)
-        fixed_slicing = self._get_fixed_slicing(*args, **kwargs)
+        superself = self
         class Selected(object):
+            def __init__(self, sliced):
+                self._sliced = tuple(sliced)
             def prod(self, gu_tuple_dict, scalar = 1, filter = lambda *args : True):
                 def get_scalar(*args):
                     if not filter(*args):
@@ -341,9 +342,13 @@ class Slicer(object):
                     if callable(scalar):
                         return scalar(*args)
                     return scalar
-                return gu_tuple_dict.prod({k:_scalar for k in sliced for _scalar in [get_scalar(*k)]
-                                          if _scalar}, *fixed_slicing)
-        return Selected()
+                return gu_tuple_dict.prod({k:_scalar for k in self._sliced for _scalar in [get_scalar(*k)]
+                                          if _scalar})
+            def columns(self, columns):
+                matches = attempted_underscore_case_matcher(superself._field_names, columns)
+                verify(len(matches) == len(columns), "unexpected field name in columns")
+                verify(False, "Finish me")
+        return Selected(self.slice(*args, **kwargs))
     # END not very well tested section
 
 def do_it(g): # just walks through everything in a gen - I like the syntax this enables
