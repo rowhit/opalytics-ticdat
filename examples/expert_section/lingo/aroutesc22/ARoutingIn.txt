@@ -1,0 +1,42 @@
+! Comments may be included by placing between a ! and a ;
+!  Table of scalar data;
+  9     ! Number loaded legs available to be flown;
+  1     ! Relative value of covering a loaded flight;
+  0.45  ! Relative cost of a repositioning flight;
+  0.7   ! Relative cost of an aircraft;
+   1    ! Limit on total aircraft used;
+~
+!Table of Cities, offset in hours from GMT, Lat and Long, Initial AC at city;
+! 1; Chicago         -6  41.8500  -87.6500   0! Chicago is 6 hours behind Greenwich Mean Time; 
+! 2; Denver          -7  39.7392 -104.9903   1! Denver is 7 hours ...;
+! 3; Tucson          -7  32.2217 -110.9258   1
+! 4; Salt_Lake_City  -7  40.7500 -111.8833   0
+! 5; Phoenix         -7  33.4833 -112.0667   0
+! 6; Las_Vegas       -8  36.1667 -115.2000   0
+! 7; Los_Angeles     -8  34.0522 -118.2428   1
+ ~
+! Table of city pair trips available to cover/service;
+!	Origin         Destination           Local Departure time ;             
+!LEG	 City	             City        Year   Month  Day Hour Minute ;
+  1     Los_Angeles      Salt_Lake_City  2017     4     24   10     0   
+  2     Salt_Lake_City   Phoenix         2017     4     25   14    20   
+  3     Salt_Lake_City   Los_Angeles     2017     4     27   16     0 
+  4     Phoenix          Chicago         2017     4     26   11    20
+  5     Salt_Lake_City   Las_Vegas       2017     4     28   16     0   
+  6     Las_Vegas        Salt_Lake_City  2017     4     29   12     0   
+  7     Tucson           Salt_Lake_City  2017     4     25   15     0   
+  8     Denver           Las_Vegas       2017     4     26    8    30 
+  9     Chicago          Phoenix         2017     4     27   10    30   
+~
+
+! Matrix (dense) of travel times in minutes;
+! Presented by row, i.e., a list in which 'To' index moves faster than 'From';
+!  Chi   Den   Tuc   SLC   Phn   LVg   LAX ;
+    0    150   195   190   205   215   240 ! Chicago;
+  150      0   115    85   120   115   155 ! Denver;
+  195    115     0   120    60    95   120 ! Tucson; 
+  190     85   120     0   100    85   110 ! Salt_Lake_City;
+  205    120    60   100     0    85   120 ! Phoenix;
+  215    115    95    85    85     0   120 ! Las_Vegas;
+  240    155   120   110   120   120     0 ! Los_Angeles;
+~

@@ -1,22 +1,9 @@
-! added lines needed for lingo_run sanity check
+MODEL:
+
+!-------------- Begin data initialization section ------------------- ;
 @FILE("ticdat_fleethd.lng")
 @FILE("ticdat_fleethd.ldt")
-@FILE("ticdat_fleethd_output.ldt")
-
-MODEL:
-SETS:  ! Fleet routing and assignment with deadheading (fleetdhd) in LINGO;
- ! We are given 
-    1) a set of loads to be carried, each load having
-       an origin city, a destination city, and a departure time,
-    2) travel times between cities.
-   How should load carrying vehicles be routed so as to minimize
-   some measure of vehicle cost?;
-! Key words: fleet routing, fleet assignment, dead heading,
-             tanker scheduling, aircraft scheduling;
-! Reference: Dantzig, G. and D. Fulkerson(1954), "Minimizing the
-      Number of Tankers to Meet a Fixed Schedule", Naval Research
-      Logistics Quarterly, vol. 1, pp. 217-222;
-
+SETS:
  CITY :;  ! The cities involved;
  VTYPE:   ! Vehicle types;
   FCOST,  ! Fixed cost of using a vehicle for > 0 loads;
@@ -24,82 +11,38 @@ SETS:  ! Fleet routing and assignment with deadheading (fleetdhd) in LINGO;
  LOAD:;   ! The loads to be delivered;
  LXCXC( LOAD, CITY, CITY) :
   DEPAT;   ! Load departure time(ready for loading);
- VXC( VTYPE, CITY): 
+ VXC( VTYPE, CITY):
   AVAILIN; ! Number vehicles initially available at each city;
   VXCXC( VTYPE, CITY, CITY):
     ATIME, ! time from city to city for loaded vehicle;
     BTIME, ! time from city to city for deadheading vehicle;
    CDHEAD; ! Cost of a deadhead;
- VXLXCXC( VTYPE, LXCXC): 
+ VXLXCXC( VTYPE, LXCXC):
   X,      ! Number vehicles used(0 or 1) by type, on this load;
   PC;     ! Profit contribution by type, Load;
 ENDSETS
 
-
 DATA:
-  ! A variation of the Dantzig-Fulkerson example;
-   CITY = S1  S2  D1  D2  D3; ! Cities involved;
+   CITY = inp_city;
+   VTYPE = inp_vehicles;
+   FCOST = inp_vehicles_fixed_cost;
+   FSIZE = inp_vehicles_fixed_size;
 
- VTYPE, FCOST, FSIZE = ! Vehicle type, fixed cost, fleet size;
-  STND    1     99
-  FAST   1.5    1;
+ AVAILIN = inp_available_number_vehicles;
+ LOAD = inp_load;
+ LXCXC, DEPAT = inp_load_origin_city,inp_load_destination_inp_load_departure_time;
 
- AVAILIN= 99  99  99  99  99, ! Number initially available;
-          99  99  99  99  99; ! of each vehicle type by locn;
- LOAD = 1..20;
+ ATIME = inp_travel_loaded_time;
 
-    LXCXC,        DEPAT = ! Loads to be carried;
-! LOAD  Origin Dest. Depart;
-    1    S1     D1     1
-    2    S1     D1     4
-    3    S1     D1     7
-    4    S1     D1    10
-    5    S1     D1    13
-    6    S1     D2     9
-    7    S1     D2    15
-    8    S1     D3     6
-    9    S1     D3    12
-   10    S2     D1     3
-   11    S2     D1     6
-   12    S2     D1     9
-   13    S2     D1    12
-   14    S2     D2     7
-   15    S2     D2    10
-   16    S2     D2    13
-   17    S2     D2    15
-   18    S2     D3     5
-   19    S2     D3    10
-   20    S2     D3    15;
+ BTIME = inp_travel_deadhead_time;
 
- ATIME =  ! Time to move a loaded vehicle;
-  !S1   S2  D1  D2  D3;
-    0   99   2   3   2  ! S1, STND vehicle;
-   99    0   1   2   1  ! S2;
-    2    1   0  99  99  ! D1;
-    3    2  99   0  99  ! D2;
-    2    1  99  99   0  ! D3;
-    0   99 1.5 2.1 1.5  ! S1, FAST vehicle;
-   99    0   1 1.5   1  ! S2;
-  1.5    1   0  99  99  ! D1;
-  2.1  1.5  99   0  99  ! D2;
-  1.5    1  99  99   0;  ! D3;
-
- BTIME = ! Time to move an empty vehicle;
-  !S1   S2  D1  D2  D3;
-    0   99   2   3   2  ! S1, STND vehicle;
-   99    0   1   2   1  ! S2;
-    2    1   0  99  99  ! D1;
-    3    2  99   0  99  ! D2;
-    2    1  99  99   0  ! D3;
-    0   99 1.5 2.1 1.5  ! S1, FAST vehicle;
-   99    0   1 1.5   1  ! S2;
-  1.5    1   0  99  99  ! D1;
-  2.1  1.5  99   0  99  ! D2;
-  1.5    1  99  99   0; ! D3;
-
- PC = 0;  ! Profit contribution of each vehicle*Load combo;
+ PC = 0;
 ENDDATA
+!-------------- end data initialization section --------------------- ;
 
+
+
+!-------------- start core mathematics section ---------------------- ;
 SETS:
 ! Create set of interesting deadhead moves;
 ! After finishing load &2 from &3 to &4,
@@ -160,7 +103,14 @@ ENDSETS
 
 ! Fractional vehicles are not allowed;
      @FOR(VXLXCXC( V, L, I, J): @GIN( X(V,L,I,J))); 
-     @FOR(VCLCC(V,J,L,I,J):     @GIN(XI( V,J,L,I,J))); 
+     @FOR(VCLCC(V,J,L,I,J):     @GIN(XI( V,J,L,I,J)));
+!-------------- end core mathematics section ------------------------ ;
+
+
+!-------------- begin ticdat output section  ------------------------ ;
+@FILE("ticdat_fleethd_output.ldt")
+! end ticdat output section ;
 END
+!-------------- end ticdat output section    ------------------------ ;
 
  

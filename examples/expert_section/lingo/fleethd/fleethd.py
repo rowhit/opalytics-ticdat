@@ -46,7 +46,6 @@ input_schema.add_foreign_key("travel", "city", ["Destination City", "Name"])
 input_schema.lingo_prepend = "inp_"
 # ---------------------------------------------------------------------------------
 
-
 # ------------------------ define the output schema -------------------------------
 # Leaving solution empty, just trying to get a solve to happen
 solution_schema = TicDatFactory()

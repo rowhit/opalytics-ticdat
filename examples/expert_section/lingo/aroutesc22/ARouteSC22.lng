@@ -1,0 +1,364 @@
+MODEL:
+! The Jet/ FTL/  Taxi Routing Problem.
+ Given a set of desired flights or FTL shipments to be covered,
+ and the profitability of covering each (they need not all be covered),
+ decide which flights to cover,
+ how to route planes/vehicles to cover these flights, including
+ repositioning/deadheading flights ( at a cost).
+    A number of scalar parameters can be controlled:
+ Relative value of covering a loaded flight,
+ Relative cost of a repositioning flight,
+ Relative cost of an aircraft,
+ Limit on number of aircraft;
+
+! This version takes input from the file:
+     C:\temp\aroutingIn.txt,
+  and sends the output to the two files:
+     c:\temp\ARoutingLoad.txt, (Set of Loaded flights flown), and
+     c:\temp\ARoutingRepo.txt  (Set of repositioning flights flown)
+
+! Define the data structures;
+SETS:
+  CITY: INITA, GMTOFF, LATI, LNGT, INITUSED;
+  LEG;
+  CXC( CITY, CITY): TRVTIM;
+ ! Loaded legs;
+  LODPAIR( LEG, CITY, CITY): Year, Month, Day, Hour, Minute, 
+      DLTIME, Y, PLFLAG,
+      DCITY, ACITY, ALTIME;
+  LODPAIRA( LEG, CITY, CITY): DLATIME, ALATIME; ! Load legs actually flown; 
+  RLEG; ! Set of reposition legs;
+! Reposition city pairs;
+  RPAIR( RLEG, CITY, CITY): DRTIME, U;
+  DOW /SUN..SAT/;  ! Days of week;
+  CARCS: ORG, DST; ! List to be created of OD pairs;
+! Set of repositioning legs actually used;
+  RPAIRU(RLEG, CITY, CITY): DUTIME, AUTIME ;
+ENDSETS
+
+DATA:
+  NRPLG = 1000; ! Possible number of repositioning legs;
+
+! Scalar data;
+!Number loaded legs available to be flown, Relative value of covering a loaded flight,
+ Relative cost of a repositioning flight, Relative cost of an aircraft,
+ Limit on number of aircraft used;
+  NLLG, VL, RP, RA, LA =
+   @FILE('aroutingIn.txt');
+
+  RLEG = 1..NRPLG; ! Possible number of repositioning legs;
+  LEG = 1..NLLG; ! Get data on each loaded candidate OD pair;
+
+! Vector data;
+!  The Cities, GMT offset, latitude, longitude, initial aircraft;
+      City,      GMTOFF,  LATI,    LNGT,  INITA= 
+   @FILE('aroutingIn.txt');
+
+!  The city pair trips available to cover/service;
+  LODPAIR, Year, Month, Day, Hour, Minute = 
+   @FILE('aroutingIn.txt');
+
+!  Get travel time matrix in minutes;
+  TRVTIM = 
+   @FILE('aroutingIn.txt');
+ENDDATA
+
+SUBMODEL ROUTEM:
+ ! Variables:
+      Y(n,d,a) = 1 if we do flight leg n, 
+                    from departure city d to arrival city a,
+      U(n,d,a) = 1 if we do the nth possible deadheading flight,
+                    from city d to city a;
+
+ ! Maximize number of requested flights flown 
+  - cost of repositioning flights
+  - cost of aircraft;
+  MAX = OBJ;
+  @FREE( OBJ);
+  OBJ = VL*@SUM( LODPAIR( n, d, a): Y(n,d,a)) ! Loaded flights;
+      - RP*@SUM(   RPAIR( n, d, a): U(n,d,a)) ! Repositions;
+      - RA*@SUM( CITY(i): INITUSED(i)); ! Initial AC used at city i;
+
+ ! You either fly it or you do not;
+  @FOR( LODPAIR( n, d, a): @BIN(Y(n,d,a)));
+  @FOR(   RPAIR( n, d, a): @BIN(U(n,d,a)));
+
+ ! For every departing loaded flight from d to a at time DLTIME,
+  the number of earlier arrivals - earlier departures must be >= Y(n,d,a);
+ @FOR( LODPAIR( n, d, a):
+  [LFLO] INITUSED(d)                ! Note, scalar time is in seconds, not minutes;
+  + @SUM( LODPAIR( n1, d1, d) | DLTIME(n1,d1,d) + TRVTIM(d1,d)*60 #LE# DLTIME(n,d,a):
+       Y(n1,d1,d))  ! loaded flights into d;
+  + @SUM( RPAIR( n1, d1, d) | DRTIME(n1,d1,d) + TRVTIM(D1,d)*60 #LE# DLTIME(n,d,a):
+       U(n1,d1,d))  ! Dead-head (unloaded) flights into d;
+  - @SUM(LODPAIR(n1,d,a1) | DLTIME(n1,d,a1) #LT# DLTIME(n,d,a):
+       Y(n1,d,a1))  ! Loaded flights out of d;
+  - @SUM( RPAIR(n1,d,a1) | DRTIME(n1,d,a1) #LE# DLTIME(n,d,a):
+       U(n1,d,a1))  ! Dead head flights out;
+   >= Y(n,d,a);
+     );
+
+! For every departing repositioning flight from d to a at time DRTIME,
+  the number of earlier arrivals - earlier departures must be >= U(n,d,a);
+ @FOR( RPAIR( n, d, a):
+  [RFLO] INITUSED(d)                 ! Note, scalar time is in seconds, not minutes;
+  + @SUM( LODPAIR( n1, d1, d) | DLTIME(n1,d1,d) + TRVTIM(d1,d)*60 #LE# DRTIME(n,d,a):
+       Y(n1,d1,d))  ! loaded flights into d;
+  + @SUM( RPAIR( n1, d1, d) | DRTIME(n1,d1,d) + TRVTIM(d1,d)*60 #LE# DRTIME(n,d,a):
+       U(n1,d1,d))  ! Dead-head (unloaded) flights into d;
+  - @SUM(LODPAIR(n1,d,a1) | DLTIME(n1,d,a1) #LE# DRTIME(n,d,a):
+       Y(n1,d,a1))  ! Loaded flights out of d;
+  - @SUM( RPAIR(n1,d,a1) | a1 #NE# a #AND# (DRTIME(n1,d,a1) #LE# DRTIME(n,d,a)):
+       U(n1,d,a1))  ! Dead head flights out;
+   >= U(n,d,a);
+     );
+
+  ! Limit on number of aircraft;
+   @SUM( CITY(i): INITUSED(i)) <= LA; 
+   @FOR( CITY(i): INITUSED(i) <= INITA( i));
+ENDSUBMODEL
+
+PROCEDURE WriteFlatFileIn:
+ ! Send scalar values used/found to a flat file;
+ @DIVERT('c:\temp\RouteParams.txt'); ! Open a file;
+! Write the header;
+  @WRITE('   Parameter      Value',@NEWLINE(1));
+
+ @WRITE(
+   ' Trip_Value          ',VL, @NEWLINE(1),
+   ' ReposnCost          ',RP, @NEWLINE(1),
+   ' RelAircraftCost     ',RA, @NEWLINE(1),
+   ' NumAircraftAllowed  ',LA, @NEWLINE(1));
+ @DIVERT( ); ! Close the file;
+
+ ! Send City specific data to a flat file;
+  @DIVERT('c:\temp\RouteCity.txt'); ! Open a file;
+ ! Write the header;
+  @WRITE( '              CITY       LATI      LNGT    GMTOFF  INITA',@NEWLINE(1));
+
+ @FOR( CITY(i):
+   @WRITE( ' ', @FORMAT(CITY(i),'18s'), ' ', @FORMAT(LATI(i),'10.3f'), ' ', 
+       @FORMAT(LNGT(i),'10.3f'), ,'     ', GMTOFF(i), '   ',  INITA, @NEWLINE(1));
+     );
+ @DIVERT( ); ! Close the file;
+ENDPROCEDURE
+
+PROCEDURE WriteFlatFileOut:
+! Write info on loaded trips flown to a flat file;
+ @DIVERT('c:\temp\ARoutingLoad.txt'); ! Open a file;
+! Write the header;
+  @WRITE('        CITY_01             CITY_02       yyyy mm dd hr mm dwk',@NEWLINE(1));
+  ! A while loop to print the legs used, sorted by DLTIME;
+ @FOR( LODPAIR( n, d, a): PLFLAG(n,d,a) = 1); ! PLFLAG = 0 if already printed;
+ MORE = 1;
+ @WHILE(MORE:
+  MORE = 0;
+  CTIME = 9999999999;
+  @FOR( LODPAIR( n, d, a) | PLFLAG(n,d,a) #AND# (Y(n,d,a) #GT# 0.5):
+    CTEMP = DLTIME(n,d,a);
+    @IFC( CTEMP #LT# CTIME:
+      MORE = 1;
+      CTIME = CTEMP;
+      nsv=n; dsv=d; asv=a;
+        );
+     ); 
+  
+  @IFC( MORE:
+    PLFLAG(nsv,dsv,asv) = 0;
+!  Convert DLTIME(n,d,a) back to year month, day, hour minute;
+    CTIME = CTIME + 3600*GMTOFF(dsv); ! Take into account local time, convert hrs to secs;
+    IYR, IMON, IDAY, IWKD, IHR, IMIN, ISEC = @STM2YMDHMS( ctime);
+    @WRITE( @FORMAT(CITY(dsv),'18s') ,'   ',@FORMAT(CITY(asv),'18s'),'   ',IYR,'  ',
+    IMON,'  ',@FORMAT(IDAY,'2.0F'),' ',@FORMAT(IHR,'2.0F'),' ',@FORMAT(IMIN,'2.0F'),'  ',DOW(IWKD),@NEWLINE(1));
+    );
+  );
+ @DIVERT(); ! Close the file;
+
+! Write info on repositioning flights to flat file;
+ @DIVERT('c:\temp\ARoutingRepo.txt'); ! Open a file;
+! Write the header;
+ @WRITE('        CITY_01            CITY_02         yyyy mm dd hr mm dwk',@NEWLINE(1));
+ @FOR( RPAIR( n, d, a) | U(n,d,a) #GT# 0.5:
+  ! Convert DRTIME(n,d,a) back to year month, day, hour minute;
+    CTIME = DRTIME(n,d,a)+ 3600*GMTOFF(d); ! Take into account local time, convert hrs to secs;
+    IYR, IMON, IDAY, IWKD, IHR, IMIN, ISEC = @STM2YMDHMS( ctime);
+
+    @WRITE( @FORMAT(CITY(d),'18s'),'   ',@FORMAT(CITY(a),'18s'),'   ',IYR,'  ',
+    IMON,'  ',@FORMAT(IDAY,'2.0F'),' ',@FORMAT(IHR,'2.0F'),'  ',@FORMAT(IMIN,'2.0F'),' ',DOW(IWKD),@NEWLINE(1));
+    );
+
+ @DIVERT(); ! Close the file;
+ENDPROCEDURE
+
+PROCEDURE WriteSolnReport:
+ ! Write a little report;
+ @WRITE(' Value/trip covered= ',VL,@NEWLINE(1),
+   ' Relative cost/repositioning= ',RP,@NEWLINE(1),' Relative cost/aircraft= ',RA,
+    @NEWLINE(1),' Number aircraft allowed= ',LA, @NEWLINE(1));
+
+ @WRITE(@NEWLINE(1),' Number requested trips covered= ',
+     @SUM(LODPAIR(n,d,a)| Y(n,d,a) #GT# 0.5 :1),
+     ' (of ',@SUM(LODPAIR(n,d,a) :1),')',@NEWLINE(1));
+ @WRITE(' Number aircraft used= ',@SUM(CITY(i):INITUSED(I)),@NEWLINE(1));
+ @WRITE(' Net profit contribution= ', OBJ,@NEWLINE(1));
+
+   
+ @WRITE('            City        Lat.      Long.  GMT offset Init. veh.:',@NEWLINE(1));
+ @FOR( CITY(i):
+   @WRITE( @FORMAT(CITY(i),'18s'), ' ', @FORMAT(LATI(i),'10.3f'), ' ', 
+       @FORMAT(LNGT(i),'10.3f'), ,'     ', GMTOFF(i), '       ',  INITUSED(i), @NEWLINE(1));
+     );
+
+ @WRITE(@NEWLINE(1),' Loaded flights selected:                 Depart at(local time)',@NEWLINE(1));
+ @WRITE('    Origin              Destination       yyyy mm  dd hr mm  dwk',@NEWLINE(1));
+ ! A while loop to print the legs used, sorted by DLTIME;
+ @FOR( LODPAIR( n, d, a): PLFLAG(n,d,a) = 1); ! PLFLAG = 0 if already printed;
+ MORE = 1;
+ @WHILE(MORE:
+  MORE = 0;
+  CTIME = 9999999999;
+  @FOR( LODPAIR( n, d, a) | PLFLAG(n,d,a) #AND# (Y(n,d,a) #GT# 0.5):
+    CTEMP = DLTIME(n,d,a);
+    @IFC( CTEMP #LT# CTIME:
+      MORE = 1;
+      CTIME = CTEMP;
+      nsv=n; dsv=d; asv=a;
+        );
+     ); 
+  
+  @IFC( MORE:
+    PLFLAG(nsv,dsv,asv) = 0;
+!  Convert DLTIME(n,d,a) back to year month, day, hour minute;
+    CTIME = CTIME + 3600*GMTOFF(dsv); ! Take into account local time, convert hrs to secs;
+    IYR, IMON, IDAY, IWKD, IHR, IMIN, ISEC = @STM2YMDHMS( ctime);
+
+    @WRITE( @FORMAT(CITY(dsv),'18s') ,'   ',@FORMAT(CITY(asv),'18s'),'   ',IYR,'  ',
+    IMON,'  ',@FORMAT(IDAY,'2.0F'),' ',@FORMAT(IHR,'2.0F'),' ',@FORMAT(IMIN,'2.0F'),'  ',DOW(IWKD),@NEWLINE(1));
+    );
+  );
+
+!@DIVERT(); ! Close the file;
+
+@WRITE(@NEWLINE(1),' Repositioning Flights:',@NEWLINE(1));
+@WRITE('    Origin              Destination       yyyy mm  dd hh  mm dwk',@NEWLINE(1));
+
+@FOR( RPAIR( n, d, a) | U(n,d,a) #GT# 0.5:
+  ! Convert DRTIME(n,d,a) back to year month, day, hour minute;
+    CTIME = DRTIME(n,d,a)+ 3600*GMTOFF(d); ! Take into account local time, convert hrs to secs;
+    IYR, IMON, IDAY, IWKD, IHR, IMIN, ISEC = @STM2YMDHMS( ctime);
+
+    @WRITE( @FORMAT(CITY(d),'18s'),'   ',@FORMAT(CITY(a),'18s'),'   ',IYR,'  ',
+    IMON,'  ',@FORMAT(IDAY,'2.0F'),' ',@FORMAT(IHR,'2.0F'),'  ',@FORMAT(IMIN,'2.0F'),' ',DOW(IWKD),@NEWLINE(1));
+    );
+ENDPROCEDURE
+
+PROCEDURE PlotIt:
+ ! Build vectors to prepare to draw various networks;
+   @FOR( LODPAIR(n,d,a):
+     DCITY(n,d,a) = d;  ! Departure city of leg;
+     ACITY(n,d,a) = a;  ! Arrival city of leg;
+! Time that a flight arrives at destination city;
+     ALTIME(n,d,a) = DLTIME(n,d,a) + TRVTIM(d,a)*60;
+       );
+
+ ! Draw a geographic network of flights;
+   @CHARTNETNODE( 
+      ' Latt/Long Display of Cities and Loaded Flights'    ! Title of chart;
+      , 'Latitude', 'Longitude' ! Labels for horizontal and vertical;
+      , 'Flights to cover'      ! Legend for arc set 1;
+      , LNGT, LATI              ! Coordinates of the nodes;
+      , DCITY, ACITY);          ! Node pairs of arcs;
+
+  ! Get ready to draw a space time diagram;
+  TBASE = @MIN(LODPAIR(n,d,a): DLTIME(n,d,a)); ! Earliest departure time;
+  ! Build the set of repositioning legs actually used;
+  NUMREP = 0;
+  @FOR( RPAIR(n,d,a) | U(n,d,a) #GT# 0.5:
+     NUMREP = NUMREP + 1;
+     @INSERT( RPAIRU, n, d, a); 
+     DUTIME(n,d,a)= (DRTIME(n,d,a)-TBASE)/3600; ! Depart time in hours from TBASE;
+     AUTIME(n,d,a)= (DRTIME(n,d,a) + TRVTIM(d,a)*60-TBASE)/3600; ! Arrive time;  
+     );
+ ! Create subset of flights actually flown;
+  @FOR( LODPAIR(n,d,a) | Y(n,d,a) #gt# 0.5: ! Get time in hours from TBASE of loaded arcs;
+     @INSERT( LODPAIRA, n, d, a); 
+     DLATIME(n,d,a) = (DLTIME(n,d,a)-TBASE)/3600; ! Depart time in hours from TBASE;
+     ALATIME(n,d,a) = (ALTIME(n,d,a)-TBASE)/3600;
+      );
+
+ ! Draw a space-time diagram...;
+  @IFC( NUMREP #GT# 0:
+ ! Space/Time chart has time plotted on one axis, 
+    horizontal in this case, and "linearized text labeled space" on
+    the other axis, city names vertically in this case;
+     @CHARTSPACETIME( 'Space/Time Diagram of Flights',
+       'Time in hours', 'City', 
+       'Loaded flights', 
+        LODPAIRA, ! OD Pair list 1;
+        DLATIME,  ! Origin time list 1;
+        ALATIME,  ! Destination time list 1;
+       'Reposition flights',
+        RPAIRU,  ! OD Pair list 2;
+        DUTIME,  ! Origin time list 2;
+        AUTIME); ! Destination time list 2;
+     @ELSE 
+       @CHARTSPACETIME( 'Space/Time Diagram of Flights',
+       'Time in hours', 'City', 
+       'Loaded flights', 
+        LODPAIRA, ! OD Pair list 1;
+        DLATIME,  ! Origin time list 1;
+        ALATIME); ! Destination time list 1;
+   );
+ENDPROCEDURE
+
+CALC:
+  @SET( 'TERSEO',2);   ! Output level (0:verb, 1:terse, 2:only errors, 3:none);
+  @SET( 'IPTOLR', 0.000001); ! Set ending relative optimality tolerance;
+  @SET( 'TIM2RL', 5);  ! Time in seconds to apply optimality tolerance;
+  @SET( 'DUALCO', 0);  ! Set dual computations  (0:off, 1:On);
+  @SET( 'OROUTE',1);   ! Route output immediately to the window line by line;
+  @SET( 'GLOBAL',0);   ! 0:Do not use Global solver, 1:Use the Globasolver; 
+
+  ! For each load,
+    Convert Year, Month, Day, Hour, Minute(n,d,a) to a scalar DLTIME(n,d,a)
+    so we can do simple comparisons and calendar arithmetic;
+  ! Compute departure time in scalar GMT time for each loaded flight;
+  @FOR( LODPAIR( n, d, a):
+    DLTIME(n,d,a) = @YMD2STM( Year(n,d,a), Month(n,d,a), Day(n,d,a) , Hour(n,d,a), Minute(n,d,a), 0)
+                    - 3600*GMTOFF(d); ! Take into account local time, convert hours to seconds;
+       ); 
+
+ ! Construct the set of candidate repositioning legs. For each departing
+  flight from city j, we add a candidate repositioning leg from every
+  other city i, j #NE# i, at TRVTIM(i,j) minutes earlier ;
+  k = 0;
+  @FOR( LODPAIR( n, j, a):
+    @FOR( CITY(i) | i #NE# j:
+      k = k+1;
+  ! Insert into the RPAIR set, the triple (k, i, j);
+      @INSERT( RPAIR, k, i, j); 
+  ! Now that the element has been added to the set, we can set its attributes;
+      ! Note, travel times are in minutes, scalar TRVTIM(i,j) in seconds;
+      DRTIME(k,i,j) = DLTIME(n,j,a) - TRVTIM(i,j)*60;
+        );
+      );
+
+ !  @GEN( ROUTEM); ! If you want to see the explicit scalar model;
+
+ ! Maximize the value of loaded flights flown, minus cost of 
+   repositioning legs and airplanes used;
+   @SOLVE( ROUTEM);
+
+! Write a little solution report to the screen;
+  WriteSolnReport;
+
+! Write Flat file of input;
+  WriteFlatFileIn;
+
+! Write Flat file of output;
+  WriteFlatFileOut;
+
+! If we want to plot;
+  PlotIt;
+ ENDCALC
+END 
