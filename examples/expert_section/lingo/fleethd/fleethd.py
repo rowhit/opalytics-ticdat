@@ -22,8 +22,9 @@ from ticdat import TicDatFactory, standard_main, lingo_run
 # ------------------------ define the input schema --------------------------------
 input_schema = TicDatFactory (
     city = [["Name"],[]],
+    load = [["Number"],[]],
     vehicles  = [["Vehicle Type"],["Fixed Cost", "Fixed Size"]],
-    load = [["Number"],["Origin City", "Destination City", "Departure Time"]],
+    load_transit = [["Load", "Origin City", "Destination City",],["Departure Time"]],
     available = [["Vehicle Type", "City"],["Number Vehicles"]],
     travel = [["Vehicle Type", "Origin City", "Destination City"],
               ["Loaded Time", "Deadhead Time", "Deadhead Cost"]],
@@ -35,8 +36,9 @@ input_schema = TicDatFactory (
     )
 # only setting foreign keys for now, since LINGO actually does need those
 
-input_schema.add_foreign_key("load", "city", ["Origin City", "Name"])
-input_schema.add_foreign_key("load", "city", ["Destination City", "Name"])
+input_schema.add_foreign_key("load_transit", "load", ["Load", "Number"])
+input_schema.add_foreign_key("load_transit", "city", ["Origin City", "Name"])
+input_schema.add_foreign_key("load_transit", "city", ["Destination City", "Name"])
 input_schema.add_foreign_key("available", "vehicles", ["Vehicle Type", "Vehicle Type"])
 input_schema.add_foreign_key("available", "city", ["City", "Name"])
 input_schema.add_foreign_key("travel", "vehicles", ["Vehicle Type", "Vehicle Type"])

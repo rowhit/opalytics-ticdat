@@ -24,19 +24,12 @@ ENDSETS
 
 DATA:
    CITY = inp_city;
+   LOAD = inp_load;
    VTYPE = inp_vehicles;
-   FCOST = inp_vehicles_fixed_cost;
-   FSIZE = inp_vehicles_fixed_size;
-
- AVAILIN = inp_available_number_vehicles;
- LOAD = inp_load;
- LXCXC, DEPAT = inp_load_origin_city,inp_load_destination_inp_load_departure_time;
-
- ATIME = inp_travel_loaded_time;
-
- BTIME = inp_travel_deadhead_time;
-
- PC = 0;
+   VXC = inp_available;
+   LXCXC = inp_load_transit;
+   VXLXCXC = inp_travel;
+   PC = 0;
 ENDDATA
 !-------------- end data initialization section --------------------- ;
 
