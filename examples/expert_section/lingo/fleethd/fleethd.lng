@@ -1,39 +1,31 @@
 MODEL:
-
 !-------------- Begin data initialization section ------------------- ;
+! Get ticdat style set declarations for the interface;
 @FILE("ticdat_fleethd.lng")
-@FILE("ticdat_fleethd.ldt")
+!;
+
 SETS:
- CITY :;  ! The cities involved;
- VTYPE:   ! Vehicle types;
-  FCOST,  ! Fixed cost of using a vehicle for > 0 loads;
-  FSIZE;  ! Max fleet size of this type;
- LOAD:;   ! The loads to be delivered;
- LXCXC( LOAD, CITY, CITY) :
-  DEPAT;   ! Load departure time(ready for loading);
- VXC( VTYPE, CITY):
-  AVAILIN; ! Number vehicles initially available at each city;
-  VXCXC( VTYPE, CITY, CITY):
-    ATIME, ! time from city to city for loaded vehicle;
-    BTIME, ! time from city to city for deadheading vehicle;
-   CDHEAD; ! Cost of a deadhead;
- VXLXCXC( VTYPE, LXCXC):
+! Internal sets not visible to outside world;
+ VXLXCXC( inp_vehicles, inp_load_transit):
   X,      ! Number vehicles used(0 or 1) by type, on this load;
   PC;     ! Profit contribution by type, Load;
 ENDSETS
 
+! Get ticdat style data input;
+@FILE("ticdat_fleethd.ldt")
+
+
 DATA:
-   CITY = inp_city;
-   LOAD = inp_load;
-   VTYPE = inp_vehicles;
-   VXC = inp_available;
-   LXCXC = inp_load_transit;
-   VXLXCXC = inp_travel;
-   PC = 0;
-ENDDATA
+! Synonyms: with original model and ticdat names;
+!   CITY = inp_city;
+!   LOAD = inp_load;
+!   VTYPE = inp_vehicles;
+!   VXC = inp_available;
+!   LXCXC = inp_load_transit;
+!   VXLXCXC = inp_travel;
+   PC = 0;  ! Profit contribution per loaded vehicle;
+ ENDDATA
 !-------------- end data initialization section --------------------- ;
-
-
 
 !-------------- start core mathematics section ---------------------- ;
 SETS:
@@ -41,13 +33,13 @@ SETS:
 ! After finishing load &2 from &3 to &4,
    a deadhead from &4 to &6 is useful in carrying
   load &5 if it gets there in time;
- VLCCLCC( VTYPE, LXCXC, LXCXC)| 
-     DEPAT(&2,&3,&4)+ATIME(&1,&3,&4)+BTIME(&1,&4,&6)#LE# DEPAT(&5,&6,&7):
+ VLCCLCC( inp_vehicles, inp_load_transit, inp_load_transit)| 
+     inp_load_transit_departure_time(&2,&3,&4)+inp_travel_loaded_time(&1,&3,&4)+inp_travel_deadhead_time(&1,&4,&6)#LE# inp_load_transit_departure_time(&5,&6,&7):
    XDH;   ! Number vehicles deadheading empty, after doing load L1
              to next do load L2;
 
 ! Create set of initial deadhead moves. Assume time starts at 0;
- VCLCC( VTYPE, CITY, LXCXC)| BTIME(&1,&2,&4) #LE# DEPAT(&3,&4,&5):
+ VCLCC( inp_vehicles, inp_city, inp_load_transit)| inp_travel_deadhead_time(&1,&2,&4) #LE# inp_load_transit_departure_time(&3,&4,&5):
            XI; ! Number vehicles of type &1 initially at &2 that
                  deadhead to carry load &3 from &4 to &5;
 ENDSETS
@@ -64,10 +56,10 @@ ENDSETS
 ! Maximize profit contribution from LOADs minus
    overhead cost of vehicles in fleet;
  MAX = @SUM(VXLXCXC( V, L, I, J): PC(V,L,I,J) * X(V,L,I,J)) 
-     - @SUM(VCLCC(V1,J1,L1,I2,J2): FCOST(V1) * XI( V1,J1,L1,I2,J2)); 
+     - @SUM(VCLCC(V1,J1,L1,I2,J2): inp_vehicles_fixed_cost(V1) * XI( V1,J1,L1,I2,J2)); 
     
 !  Each load must be carried by some vehicle;
-  @FOR( LXCXC( L, I, J):
+  @FOR( inp_load_transit( L, I, J):
    [MUST] @SUM(VXLXCXC( V, L, I, J): X(V,L,I,J)) = 1;
       );
 
@@ -86,24 +78,21 @@ ENDSETS
         );
 
 ! Cannot start with more vehicles than available;
-   @FOR( VXC( V, I): 
-    [INIT] @SUM( VCLCC( V, I, L, I2, J2): XI(V,I,L,I2,J2)) <= AVAILIN(V,I);
+   @FOR( inp_available( V, I): 
+    [INIT] @SUM( VCLCC( V, I, L, I2, J2): XI(V,I,L,I2,J2)) <= inp_available_number_vehicles(V,I);
        ); 
 
 ! Total fleet size constraint for each vehicle type;
-  @FOR( VTYPE(V):
-      @SUM( VCLCC( V, I, L, I2, J2): XI(V,I,L,I2,J2)) <= FSIZE(V) );
+  @FOR( inp_vehicles(V):
+      @SUM( VCLCC( V, I, L, I2, J2): XI(V,I,L,I2,J2)) <= inp_vehicles_fixed_size(V) );
 
 ! Fractional vehicles are not allowed;
      @FOR(VXLXCXC( V, L, I, J): @GIN( X(V,L,I,J))); 
-     @FOR(VCLCC(V,J,L,I,J):     @GIN(XI( V,J,L,I,J)));
+     @FOR(VCLCC(V,J,L,I,J):     @GIN( XI( V,J,L,I,J)));
 !-------------- end core mathematics section ------------------------ ;
-
 
 !-------------- begin ticdat output section  ------------------------ ;
 @FILE("ticdat_fleethd_output.ldt")
-! end ticdat output section ;
+
 END
 !-------------- end ticdat output section    ------------------------ ;
-
- 
