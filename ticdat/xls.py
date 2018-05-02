@@ -320,17 +320,19 @@ class XlsTicFactory(freezable_factory(object, "_isFrozen")) :
         tdf = self.tic_dat_factory
         book = xlwt.Workbook()
         for t in  sorted(sorted(tdf.all_tables),
-                         key=lambda x: len(tdf.primary_key_fields.get(x, ()))) :
+                         key=lambda x: len(tdf.primary_key_fields.get(x, ()))):
             sheet = book.add_sheet(tbl_name_mapping[t][:_longest_sheet])
             for i,f in enumerate(tdf.primary_key_fields.get(t,()) + tdf.data_fields.get(t, ())) :
                 sheet.write(0, i, f)
             _t = getattr(tic_dat, t)
             if utils.dictish(_t) :
-                for row_ind, (p_key, data) in enumerate(_t.items()) :
+                for row_ind, p_key in enumerate(sorted(_t)):
+                    data = _t[p_key]
                     for field_ind, cell in enumerate( (p_key if containerish(p_key) else (p_key,)) +
                                         tuple(data[_f] for _f in tdf.data_fields.get(t, ()))):
                         sheet.write(row_ind+1, field_ind, cell)
             else :
+                # for non-pk tables, row ordering needs to be preserved
                 for row_ind, data in enumerate(_t if containerish(_t) else _t()) :
                     for field_ind, cell in enumerate(tuple(data[_f] for _f in tdf.data_fields[t])) :
                         sheet.write(row_ind+1, field_ind, cell)
@@ -356,12 +358,14 @@ class XlsTicFactory(freezable_factory(object, "_isFrozen")) :
                 sheet.write(0, i, f)
             _t = getattr(tic_dat, t)
             if utils.dictish(_t) :
-                for row_ind, (p_key, data) in enumerate(_t.items()) :
+                for row_ind, p_key in enumerate(sorted(_t)) :
+                    data = _t[p_key]
                     for field_ind, cell in enumerate( (p_key if containerish(p_key) else (p_key,)) +
                                         tuple(data[_f] for _f in tdf.data_fields.get(t, ()))):
                         sheet.write(row_ind+1, field_ind, clean_inf(cell))
             else :
-                for row_ind, data in enumerate(_t if containerish(_t) else _t()) :
+                # for non-pk tables, row ordering needs to be preserved
+                for row_ind, data in enumerate(_t if containerish(_t) else _t()):
                     for field_ind, cell in enumerate(tuple(data[_f] for _f in tdf.data_fields[t])) :
                         sheet.write(row_ind+1, field_ind, clean_inf(cell))
         book.close()

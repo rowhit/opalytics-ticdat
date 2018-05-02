@@ -332,7 +332,6 @@ class TestXls(unittest.TestCase):
             ticDat2 = tdf.xls.create_tic_dat(filePath)
             self.assertTrue(tdf._same_data(ticDat, ticDat2))
 
-
     def testRowOffsets(self):
         if not self.can_run:
             return
